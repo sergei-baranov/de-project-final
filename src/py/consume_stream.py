@@ -7,7 +7,7 @@ from typing import Dict, Optional
 from confluent_kafka import Consumer
 
 def error_callback(err):
-    print('Something went wrong: {}'.format(err))
+    print(f'Something went wrong: {err}')
 
 
 class KafkaConsumer:
@@ -54,8 +54,8 @@ def main():
     c = KafkaConsumer(
         host='rc1a-sd5jrikpd9jcve1c.mdb.yandexcloud.net',
         port=9091,
-        user='producer_consumer',
-        password='sprint_11',
+        user='***',
+        password='***',
         topic='transaction-service-input',
         group='Goo',
         cert_path='/YandexInternalRootCA.crt'
@@ -65,7 +65,7 @@ def main():
     timeout: float = 3.0
     # мне парочки хватит для разбора структуры
     stopper = 0
-    border = 7000
+    border = 700
     while True:
         # получение сообщения из Kafka
         s = c.consume(timeout=timeout)
@@ -74,13 +74,15 @@ def main():
             # если в Kafka сообщений нет, скрипт засыпает на секунду,
             # а затем продолжает выполнение в новую итерацию
             time.sleep(1)
-            continue
         else:
             # печать сообщения
             print(s)
-            stopper += 1
-            if stopper > border:
-                break
+
+        # в лучшем случае получим 700 (border) сообщений,
+        # в худшем - проспим 700 (border) секунд
+        stopper += 1
+        if stopper > border:
+            break
 
 
 if __name__ == '__main__':

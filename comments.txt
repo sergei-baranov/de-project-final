@@ -1,0 +1,245 @@
+Кирилл, привет!
+
+Спасибо за проверку!
+
+По замечаниям попунктно доработки:
+
+1. Просьба весь закоменченный код в проекте удалить если он нам не нужен
+
+- Готово
+
+---
+
+2. В коде используются устаревшие методы форматирования строк, например,
+'dump_transactions.{0}.csv'.format(anchor_date_s)
+можно заменить на более читабельный вариант с использованием f-строк:
+f'dump_transactions.{anchor_date_s}.csv'.
+
+- Готово
+
+---
+
+3.1. Есть очевидное повторение кода в функциях `dump_transactions` и `dump_currencies`.
+Лучше объединить эти две функции в одну, чтобы не дублировать код.
+
+- теперь там одна функция - dump_table
+
+3.2. Так же обе функции принимают одни и те же параметры.
+Это может быть сделано более чистым путем объединения этих параметров в словарь
+и передачи его в функцию.
+
+- оставил у всех методов репозитория только один аргумент - дата, на которую им работать.
+sql_path - директория с файлами сиквельными - перенёс в конструктор,
+а логгер беру везде по имени '__main__'
+
+3.3. И при этом функции dump_transactions и dump_currencies слишком большие и делают слишком много.
+Лучше разбить их на более мелкие функции, которые выполняют только одну задачу.
+Например, функции для создания директорий и файлов, функции для чтения SQL-запросов и т.д.
+
+- вынес формирование сиквела для дампа в __make_sql_for_dump()
+- вынес создание файла под дамп в __make_file_for_dump()
+
+---
+
+4. В функциях dump_transactions и dump_currencies используется open() для открытия файлов,
+но нет обработки исключений и закрытия файлов после использования.
+Это может привести к утечке ресурсов и другим проблемам.
+Лучше использовать конструкцию with open(...) as ... для гарантированного
+закрытия файлов после использования.
+
+- Готово
+
+---
+
+5. Использование контекстного менеджера closing из модуля contextlib необходимо в методах,
+где происходит работа с файлами
+
+- я использовал closing в модуле про постгрес, а в вертике забыл.
+теперь пристроил в вертике тоже
+
+---
+
+6. Необходимо проверять наличие и правильность заполнения полей в vertica_conn перед использованием в методах,
+которые используют его поля для подключения к БД
+
+- Вставил проверку ожидаемых свойств и тестовый коннект в конструкторы
+VerticaRepository и PgRepository
+
+---
+
+7. вместо os.stat.st_size использовать os.path.getsize()
+
+- Готово
+
+---
+
+8. Необходимо добавить проверки наличия и корректности пути sql_path в методах
+
+- теперь эта директория передаётся в конструктор. вставил проверку в него в оба класса
+
+---
+
+
+9. Имена таблиц и схем лучше вынести в константы класса
+
+- Готово
+- Заодно повторяющийся код функций load_transactions() и load_currencies()
+вынес в приватную __load_table()
+
+---
+
+
+10. Определённо нет никакого смысла в переписывании просто классов из каталога project_final ...
+
+- Airflow таки увидел мой модуль.
+Надо было просто... его перезапустить :).
+Но до этого я уже успел реструктурировать фс по инструкции
+https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/modules_management.html
+
+---
+
+
+11. Использование переменной log необязательно в каждой функции, где ведется логирование.
+Вместо этого, можно воспользоваться возможностью передавать имя функции как параметр
+в logging.getLogger().
+Таким образом, можно сразу указывать имя модуля и функции, где произошло событие.
+
+- Готово
+
+---
+
+
+12. Строка для заполнения переменной sql_path является громоздкой и непонятной.
+Лучше использовать метод os.path.join() для объединения путей,
+а также убрать лишний вызов os.path.abspath()
+
+- Готово
+
+---
+
+
+13. Вместо объявления функций с декораторами @task
+можно использовать декоратор Python @task_function,
+чтобы объявить задачу в виде обычной функции,
+а затем передавать эту функцию в конструктор класса Task.
+Это упростит код и сделает его более читабельным.
+
+- :(( Гугл не нашёл мне такой декоратор.
+
+---
+
+
+14. Передача параметров между задачами.
+Для передачи параметров между задачами в процессе выполнения DAG лучше использовать объекты XCom,
+которые позволяют передавать данные между задачами.
+
+- Всё, передаю это значение в конструкторы классов-репозиториев, XCom не понадобился :).
+Но в каких-то модулях мы делали на него задания, кажется.
+Или в каком-то проекте я заюзал модульном...
+
+---
+
+15. Советую не использовать бесконечный цикл для чтения сообщений, а остановиться, когда нужное количество сообщений уже прочитано. Вместо этого лучше использовать переменную-счетчик, чтобы определить, сколько сообщений было прочитано, и выйти из цикла, когда нужное количество сообщений уже получено.
+
+Да, у меня там в коде он строен - переменные stopper и border.
+Вынес их за пределы условия, чтобы не уйти в бесконечность, если сообщений нет.
+
+---
+
+16. Рассмотри возможность использования асинхронной библиотеки asyncio вместо того,
+чтобы использовать time.sleep() для ожидания сообщений.
+Это может сделать код более производительным и масштабируемым.
+
+- `src/py/consume_stream_asyncio.py`
+
+Попробовал.
+Скопипастил, по сути, отсюда: `https://github.com/confluentinc/confluent-kafka-python/issues/1017`
+
+Работает :)
+
+```bash
+root@1edcb5e8b32f:/lessons/py# python3 consume_stream_asyncio.py
+INFO:__main__:Starting consumer: transaction-service-input
+INFO:__main__:Starting consumer: dds4cdm-services-messages
+{'object_id': '0a642f30-de5f-5fdf-a2e9-a3f87c025848', 'object_type': 'CURRENCY', 'sent_dttm': '2022-10-01T00:00:00', 'payload': {'date_update': '2022-10-01 00:00:00', 'currency_code': 410, 'currency_code_with': 430, 'currency_with_div': 0.93}}
+{'object_id': '31bf306d-0102-5a1f-8325-82ad16fefe15', 'object_type': 'CURRENCY', 'sent_dttm': '2022-10-01T00:00:00', 'payload': {'date_update': '2022-10-01 00:00:00', 'currency_code': 410, 'currency_code_with': 470, 'currency_with_div': 0.93}}
+{'object_id': '23b38d7e-331f-5562-ae42-3882bc319caf', 'object_type': 'CURRENCY', 'sent_dttm': '2022-10-01T00:00:00', 'payload': {'date_update': '2022-10-01 00:00:00', 'currency_code': 410, 'currency_code_with': 460, 'currency_with_div': 1.04}}
+{'object_id': '8e1c701c-afb3-5b7d-baf6-87e2abf6aaa3', 'object_type': 'CURRENCY', 'sent_dttm': '2022-10-01T00:00:00', 'payload': {'date_update': '2022-10-01 00:00:00', 'currency_code': 410, 'currency_code_with': 450, 'currency_with_div': 0.96}}
+{'object_id': 'd8e0b835-8f9e-51b3-a25e-8358009c88a8', 'object_type': 'CURRENCY', 'sent_dttm': '2022-10-01T00:00:00', 'payload': {'date_update': '2022-10-01 00:00:00', 'currency_code': 410, 'currency_code_with': 420, 'currency_with_div': 0.93}}
+{'object_id': '213e690c-dbf0-5e96-834e-9b02743a89fd', 'object_type': 'CURRENCY', 'sent_dttm': '2022-10-01T00:00:00', 'payload': {'date_update': '2022-10-01 00:00:00', 'currency_code': 410, 'currency_code_with': 440, 'currency_with_div': 1.07}}
+{'object_id': '196bb636-3009-5e8c-b43f-697d21544422', 'object_type': 'CURRENCY', 'sent_dttm': '2022-10-02T00:00:00', 'payload': {'date_update': '2022-10-02 00:00:00', 'currency_code': 410, 'currency_code_with': 430, 'currency_with_div': 1.01}}
+{'object_id': '5b0a733c-c79e-5880-adb0-ab22f0cc83ad', 'object_type': 'CURRENCY', 'sent_dttm': '2022-10-02T00:00:00', 'payload': {'date_update': '2022-10-02 00:00:00', 'currency_code': 410, 'currency_code_with': 470, 'currency_with_div': 1.07}}
+INFO:__main__:Closing consumer: transaction-service-input
+^CINFO:__main__:Closing consumer: dds4cdm-services-messages
+INFO:__main__:Application shutdown complete
+root@1edcb5e8b32f:/lessons/py#
+```
+
+---
+
+17. Конфигурация кластера Spark и параметры интеграции с Kafka и PostgreSQL
+могут быть вынесены в конфигурационный файл для более удобной работы с приложением
+и лучшей масштабируемости
+
+- Готово. Что возможно - вынес в `src/py/stage_stream.json`
+
+Проверил - работает ).
+
+---
+
+18. Если входные данные не являются абсолютно уникальными,
+можно использовать аппроксимацию по временной метке,
+чтобы исключить дублирование данных, а не делать это вручную через метод .dropDuplicates()
+
+```
+        .dropDuplicates(['object_type', 'object_id']) \
+        .withWatermark('sent_dttm', '5 minutes')
+```
+
+- Вот тут совсем не понял. Не мой уровень, думаю, пока что :).
+
+---
+
+19. Не вижу проекций )
+
+- хм...
+
+a. Реализуйте соответствующую слою сырых данных модель данных полей — присвойте им нужные имена, типы данных.
+b. Создайте проекции по датам.
+c. Добавьте сортировку и сегментирование по хеш-функции от даты и идентификатора транзакции.
+
+```
+ORDER BY date_update, object_id
+
+...
+
+ORDER BY transaction_dt, object_id
+```
+
+Ну... суперпроекцию я сделал )
+
+Добавляю тогда отдельно только по датам проекции?
+
+Добавил такой сиквел в init.sql:
+
+```
+-- DROP PROJECTION IF EXISTS "SERGEI_BARANOVTUTBY__STAGING"."currencies_bydateonly";
+CREATE PROJECTION IF NOT EXISTS "SERGEI_BARANOVTUTBY__STAGING"."currencies_bydateonly" AS
+SELECT
+    object_id, sent_dttm, date_update, currency_code, currency_code_with, currency_with_div
+from "SERGEI_BARANOVTUTBY__STAGING"."currencies"
+ORDER BY date_update
+SEGMENTED BY hash(date_update) ALL NODES;
+
+-- DROP PROJECTION IF EXISTS "SERGEI_BARANOVTUTBY__STAGING"."transactions_bydateonly";
+CREATE PROJECTION IF NOT EXISTS "SERGEI_BARANOVTUTBY__STAGING"."transactions_bydateonly" AS
+SELECT
+    object_id, sent_dttm, operation_id, account_number_from, account_number_to,
+    currency_code, country, status, transaction_type, amount, transaction_dt
+from "SERGEI_BARANOVTUTBY__STAGING"."transactions"
+ORDER BY transaction_dt
+SEGMENTED BY hash(transaction_dt) ALL NODES;
+```
+
+
+

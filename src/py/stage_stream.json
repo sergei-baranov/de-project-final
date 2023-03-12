@@ -1,0 +1,20 @@
+{
+  "TOPIC_IN" : "transaction-service-input",
+  "spark_master" : "local",
+  "spark_app_name": "TransactionsKafkaToPostgresStager",
+  "spark_jars_packages": [
+    "org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0",
+    "org.postgresql:postgresql:42.4.0"
+  ],
+  "postgresql_settings": {
+    "user": "jovyan",
+    "password": "jovyan",
+    "driver": "org.postgresql.Driver"
+  },
+  "kafka_security_options_ssl": {
+    "kafka.security.protocol": "SASL_SSL",
+    "kafka.sasl.mechanism": "SCRAM-SHA-512",
+    "kafka.sasl.jaas.config": "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"***\" password=\"***\";"
+  },
+  "kafka_bootstrap_servers_ssl": "rc1a-sd5jrikpd9jcve1c.mdb.yandexcloud.net:9091"
+}

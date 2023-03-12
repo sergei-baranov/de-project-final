@@ -62,11 +62,25 @@ default_args = {
 
 Во все task-и передаётся `execution_date`, работа идёт по дате `-1 день` от этой даты (сегодня отрабатываем стрим за вчера, так как сегодня он уже (допущение) заполнен полностью).
 
-Ниже подробнее расписано, как что запускал в контейнере.
+Для модуляризации классы-репозитории для работы с Постгресом и Вертикой вынесены в модуль, и вообще структуру сделал согласно [мануалу Airflow](https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/modules_management.html):
+
+```bash
+/lessons/dags
+| .airflowignore # project_final/db_reps/.*
+| project_final
+    | __init__.py
+    | db_reps
+    |    |  __init__.py
+    |    | PgRepository.py
+    |    | VerticaRepository.py
+    | dags
+        | project_final.py
+```
+
+**NB:** Импорты модуля `project_final.db_reps` Airflow заспознал только после перезапуска.
 
 ### 2.1. init()
-
-Определяет пути к директориям с сиквелом, создаёт таблицы в Вертике.
+Создаёт таблицы в Вертике.
 
 ### 2.2. dump_...(), load_...(): Перекидываем поток, "приземлённый" в Постгрес as is, в стейдж Вертики с раскладкой payload по полям.
 
@@ -92,6 +106,29 @@ default_args = {
 ## 3. Скриншоты дашбоардов в BI
 
 `src/img`
+
+Исходные сырые данные в Постгресе у меня в итоге залились вот так:
+
+```sql
+SELECT
+    (cast("payload" AS json)->>'transaction_dt')::date AS "anchor_date",
+    COUNT(*) AS "cnt"
+FROM "stg"."transactions" "t"
+GROUP BY (cast("payload" AS json)->>'transaction_dt')::date
+ORDER BY (cast("payload" AS json)->>'transaction_dt')::date ASC
+;
+
+2022-10-01 | 87098
+2022-10-05 | 88168
+2022-10-08 | 24129
+2022-10-10 | 4811
+2022-10-18 | 2070
+2022-10-20 | 38665
+```
+
+Соответственно им DAG и построил тасками витрину в Вертике, и соответственно Metabase её отрисовал.
+
+---
 
 # II. Как я всё это делал
 
@@ -133,8 +170,8 @@ curl -X POST https://order-gen-service.sprint9.tgcloudenv.ru/project/register_ka
         "host": "rc1a-sd5jrikpd9jcve1c.mdb.yandexcloud.net",
         "port": 9091,
         "topic": "transaction-service-input",
-        "producer_name": "producer_consumer",
-        "producer_password": "sprint_11"
+        "producer_name": "***",
+        "producer_password": "***"
     }
 }
 EOF
@@ -949,6 +986,37 @@ src/img/amount_total.png
 ---
 ---
 
+удалённые из кода комментарии самому себе
+
+```python
+# get_current_context не нужен, декораторы транслируют контекст в именованные аргументы тасков,
+# но оставим закомментированным, чтобы когда надо вспомнить
+# from airflow.operators.python import get_current_context
+from airflow.models.baseoperator import chain  # https://docs.astronomer.io/learn/managing-dependencies
+
+...
+
+# schedule_interval='0 0 * * *',  # @daily	Run once a day at midnight	0 0 * * *
+
+...
+
+def project_final():
+    # the so called context objects, are directly accesible in task-decorated functions.
+    # This means that there is no need to import get_current_context anymore.
+    # The context objects are accesible just by declaring the parameterss in the task signature
+    @task(task_id='init')
+    def init(execution_date: datetime = None):
+        yesterday = (execution_date - timedelta(days=1)).strftime("%Y-%m-%d")
+        vertica_repository.make_init_sql(yesterday)
+
+...
+
+
+```
+
+---
+---
+---
 
 # III. Исходный readme
 

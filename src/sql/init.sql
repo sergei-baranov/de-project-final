@@ -14,6 +14,14 @@ PARTITION BY "date_update"::date
 GROUP BY calendar_hierarchy_day("date_update"::date, 3, 2)
 ;
 
+-- DROP PROJECTION IF EXISTS "SERGEI_BARANOVTUTBY__STAGING"."currencies_bydateonly";
+CREATE PROJECTION IF NOT EXISTS "SERGEI_BARANOVTUTBY__STAGING"."currencies_bydateonly" AS
+SELECT
+    object_id, sent_dttm, date_update, currency_code, currency_code_with, currency_with_div
+from "SERGEI_BARANOVTUTBY__STAGING"."currencies"
+ORDER BY date_update
+SEGMENTED BY hash(date_update) ALL NODES;
+
 -- DROP TABLE IF EXISTS "SERGEI_BARANOVTUTBY__STAGING"."transactions";
 CREATE TABLE IF NOT EXISTS "SERGEI_BARANOVTUTBY__STAGING"."transactions" (
     object_id UUID,
@@ -34,6 +42,15 @@ SEGMENTED BY HASH(transaction_dt, object_id) ALL NODES
 PARTITION BY "transaction_dt"::date
 GROUP BY calendar_hierarchy_day("transaction_dt"::date, 3, 2)
 ;
+
+-- DROP PROJECTION IF EXISTS "SERGEI_BARANOVTUTBY__STAGING"."transactions_bydateonly";
+CREATE PROJECTION IF NOT EXISTS "SERGEI_BARANOVTUTBY__STAGING"."transactions_bydateonly" AS
+SELECT
+    object_id, sent_dttm, operation_id, account_number_from, account_number_to,
+    currency_code, country, status, transaction_type, amount, transaction_dt
+from "SERGEI_BARANOVTUTBY__STAGING"."transactions"
+ORDER BY transaction_dt
+SEGMENTED BY hash(transaction_dt) ALL NODES;
 
 -- DROP TABLE IF EXISTS "SERGEI_BARANOVTUTBY"."global_metrics";
 CREATE TABLE "SERGEI_BARANOVTUTBY"."global_metrics" (

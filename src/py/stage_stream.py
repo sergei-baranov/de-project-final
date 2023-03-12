@@ -2,31 +2,22 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, to_json, col, lit, struct
 from pyspark.sql.types import StructType, StructField, StringType, TimestampType
 
-TOPIC_IN = 'transaction-service-input'
+import json
 
-spark_master = 'local'
-spark_app_name = "TransactionsKafkaToPostgresStager"
+config_data = {}
+with open('stage_stream.json') as config_file:
+    config_data = json.load(config_file)
 
+TOPIC_IN = config_data['TOPIC_IN']
+spark_master = config_data['spark_master']
+spark_app_name = config_data['spark_app_name']
 # необходимые библиотеки для интеграции Spark с Kafka и PostgreSQL
 spark_jars_packages = ",".join(
-        [
-            "org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0",
-            "org.postgresql:postgresql:42.4.0",
-        ]
+        config_data['spark_jars_packages']
     )
-
-postgresql_settings = {
-    'user': 'jovyan',
-    'password': 'jovyan',
-    'driver': 'org.postgresql.Driver',
-}
-
-kafka_security_options_ssl = {
-    'kafka.security.protocol': 'SASL_SSL',
-    'kafka.sasl.mechanism': 'SCRAM-SHA-512',
-    'kafka.sasl.jaas.config': 'org.apache.kafka.common.security.scram.ScramLoginModule required username="producer_consumer" password="sprint_11";',
-}
-kafka_bootstrap_servers_ssl = 'rc1a-sd5jrikpd9jcve1c.mdb.yandexcloud.net:9091'
+postgresql_settings = config_data['postgresql_settings']
+kafka_security_options_ssl = config_data['kafka_security_options_ssl']
+kafka_bootstrap_servers_ssl = config_data['kafka_bootstrap_servers_ssl']
 
 # создаём spark сессию с необходимыми библиотеками в spark_jars_packages для интеграции с Kafka и PostgreSQL
 spark = SparkSession.builder \
@@ -70,13 +61,13 @@ deserialized_df = read_stream_df \
         .withWatermark('sent_dttm', '5 minutes')
 
 
-# метод для записи данных в 2 target, оба в PostgreSQL
 def foreach_batch_function(df, epoch_id):
+    """метод для записи данных в 2 target, оба в PostgreSQL"""
     # персистим df, так как нам от него фильтроваться как минимум два раза
     df.persist()
 
-    # currencies
-    # static df, so write()
+    # currencies; в .foreachBatch() приходят уже static df,
+    # поэтому write(), а не writeStream()
     df_postgres_currencies = df.filter(
         col("object_type") == 'CURRENCY'
     )
@@ -85,8 +76,8 @@ def foreach_batch_function(df, epoch_id):
         .jdbc(url='jdbc:postgresql://localhost:5432/de?currentSchema=stg',
               table="currencies", mode="append", properties=postgresql_settings)
 
-    # transactions
-    # static df, so write()
+    # transactions; в .foreachBatch() приходят уже static df,
+    # поэтому write(), а не writeStream()
     df_postgres_transactions = df.filter(
         col("object_type") == 'TRANSACTION'
     )
